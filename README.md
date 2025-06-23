@@ -13,6 +13,10 @@ Current features:
 - Object removal via inpainting
 - Prompt-based generative overlay
 - Basic denoise filter
+For Windows users, a Visual Studio solution (`photo_editor.sln`) is provided.
+Open this file in Visual Studio 2022 or newer and build the `photo_editor`
+project to create the executable.
+
 - Interactive brightness and HSL controls
 - Simple rectangular masking
 - Ability to cull unwanted photos
