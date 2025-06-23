@@ -10,6 +10,8 @@ Current features:
 - Ability to cull unwanted photos
 - Preset save/load support (stored in `preset.txt`)
 
+This is a simple C++ photo editing tool demonstrating a catalogue loader and basic adjustments using OpenCV. Features such as AI tools and advanced editing are represented as placeholders for future work.
+
 ## Building
 
 Ensure CMake and OpenCV are installed. Then run:
@@ -24,4 +26,8 @@ Run the program by pointing it at one or more folders of images. The program wil
 
 ```bash
 ./photo_editor ../samples ../more_images
+Run the program by pointing it at a folder of images:
+
+```bash
+./photo_editor ../samples
 ```

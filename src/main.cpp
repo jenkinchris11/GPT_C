@@ -13,6 +13,10 @@ struct Image {
     bool edited = false;
     bool culled = false;
 
+class Image {
+public:
+    cv::Mat data;
+    std::string path;
     Image(const std::string& p) : path(p) {
         data = cv::imread(p, cv::IMREAD_UNCHANGED);
         if (data.empty()) {
@@ -33,6 +37,12 @@ public:
     std::vector<Image> images;
 
     void loadFolder(const std::string& folder) {
+
+class Catalogue {
+public:
+    std::vector<Image> images;
+    void load(const std::string& folder) {
+        images.clear();
         for (const auto& entry : fs::directory_iterator(folder)) {
             if (entry.is_regular_file()) {
                 images.emplace_back(entry.path().string());
@@ -84,6 +94,11 @@ void maskAdjust(Image& img, const cv::Rect& area, int delta) {
     img.edited = true;
 }
 
+// Placeholder for mask adjustments
+void maskAdjust(Image& img) {
+    // TODO: Implement mask adjustments
+}
+
 // Placeholder for AI metadata insertion
 void aiMetadata(Image& img) {
     // TODO: Use AI to generate metadata
@@ -130,6 +145,14 @@ int main(int argc, char** argv) {
 
     Catalogue cat;
     cat.load(folders);
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        std::cout << "Usage: " << argv[0] << " <catalogue folder>" << std::endl;
+        return 0;
+    }
+
+    Catalogue cat;
+    cat.load(argv[1]);
 
     if (cat.images.empty()) {
         return 0;
@@ -181,5 +204,13 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "Processed " << count << " images" << std::endl;
+    Image& img = cat.images[0];
+    adjustBrightness(img, 50);
+    adjustHSL(img, 10, 10, 10);
+    aiMetadata(img); // placeholder
+    denoise(img);    // placeholder
+    cv::imwrite("output.jpg", img.data);
+
+    std::cout << "Saved output.jpg" << std::endl;
     return 0;
 }
