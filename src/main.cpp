@@ -62,6 +62,14 @@ public:
 };
 
 // Basic brightness adjustment
+void adjustBrightness(cv::Mat& mat, int delta) {
+    cv::Mat tmp;
+    mat.convertTo(tmp, -1, 1, delta);
+    mat = tmp;
+}
+
+void adjustBrightness(Image& img, int delta) {
+    adjustBrightness(img.data, delta);
 void adjustBrightness(Image& img, int delta) {
     cv::Mat tmp;
     img.data.convertTo(tmp, -1, 1, delta);
@@ -70,6 +78,9 @@ void adjustBrightness(Image& img, int delta) {
 }
 
 // Hue saturation lightness simple implementation
+void adjustHSL(cv::Mat& mat, int hue, int sat, int light) {
+    cv::Mat hsv;
+    cv::cvtColor(mat, hsv, cv::COLOR_BGR2HSV);
 void adjustHSL(Image& img, int hue, int sat, int light) {
     cv::Mat hsv;
     cv::cvtColor(img.data, hsv, cv::COLOR_BGR2HSV);
@@ -81,6 +92,11 @@ void adjustHSL(Image& img, int hue, int sat, int light) {
             pixel[2] = cv::saturate_cast<uchar>(pixel[2] + light);
         }
     }
+    cv::cvtColor(hsv, mat, cv::COLOR_HSV2BGR);
+}
+
+void adjustHSL(Image& img, int hue, int sat, int light) {
+    adjustHSL(img.data, hue, sat, light);
     cv::cvtColor(hsv, img.data, cv::COLOR_HSV2BGR);
     img.edited = true;
 }
@@ -94,6 +110,42 @@ void maskAdjust(Image& img, const cv::Rect& area, int delta) {
     img.edited = true;
 }
 
+// AI metadata insertion using simple color analysis
+void aiMetadata(Image& img) {
+    cv::Scalar mean = cv::mean(img.data);
+    std::string outFile = img.path + ".meta";
+    std::ofstream out(outFile);
+    if (out.is_open()) {
+        out << "mean_b=" << mean[0] << "\n";
+        out << "mean_g=" << mean[1] << "\n";
+        out << "mean_r=" << mean[2] << "\n";
+    }
+}
+
+// Basic remove tool using inpainting over a user selected rectangle
+void aiRemove(Image& img) {
+    int x, y, w, h;
+    std::cout << "remove x y w h: ";
+    std::cin >> x >> y >> w >> h;
+    cv::Mat mask = cv::Mat::zeros(img.data.size(), CV_8U);
+    cv::rectangle(mask, cv::Rect(x, y, w, h), cv::Scalar(255), cv::FILLED);
+    cv::inpaint(img.data, mask, img.data, 3, cv::INPAINT_TELEA);
+    img.edited = true;
+}
+
+// Generative AI placeholder that overlays the prompt text
+void generativeAI(Image& img, const std::string& prompt) {
+    cv::putText(img.data, prompt, {10, img.data.rows / 2},
+                cv::FONT_HERSHEY_SIMPLEX, 1.0, {255, 255, 255}, 2);
+    img.edited = true;
+}
+
+// Professional denoise using OpenCV fastNlMeansDenoising
+void denoise(Image& img) {
+    cv::Mat tmp;
+    cv::fastNlMeansDenoisingColored(img.data, tmp, 10, 10, 7, 21);
+    img.data = tmp;
+    img.edited = true;
 // Placeholder for mask adjustments
 void maskAdjust(Image& img) {
     // TODO: Implement mask adjustments
@@ -133,6 +185,102 @@ bool loadPreset(Preset& p, const std::string& file) {
     return true;
 }
 
+struct GUIState {
+    cv::Mat original;
+    cv::Mat display;
+    int bright = 100;
+    int hue = 180;
+    int sat = 100;
+    int light = 100;
+};
+
+static void updateDisplay(GUIState* st) {
+    st->original.copyTo(st->display);
+    adjustBrightness(st->display, st->bright - 100);
+    adjustHSL(st->display, st->hue - 180, st->sat - 100, st->light - 100);
+    cv::imshow("Photo Editor", st->display);
+}
+
+static void onTrack(int, void* userdata) {
+    GUIState* st = reinterpret_cast<GUIState*>(userdata);
+    updateDisplay(st);
+}
+
+// Edit image via simple GUI. Returns false if user quit.
+bool editImageGUI(Image& img, Preset& preset) {
+    GUIState st;
+    st.original = img.data.clone();
+    st.display = img.data.clone();
+    st.bright = preset.brightness + 100;
+    st.hue = preset.hue + 180;
+    st.sat = preset.saturation + 100;
+    st.light = preset.light + 100;
+
+    cv::namedWindow("Photo Editor", cv::WINDOW_NORMAL);
+    cv::createTrackbar("Brightness", "Photo Editor", &st.bright, 200, onTrack, &st);
+    cv::createTrackbar("Hue", "Photo Editor", &st.hue, 360, onTrack, &st);
+    cv::createTrackbar("Saturation", "Photo Editor", &st.sat, 200, onTrack, &st);
+    cv::createTrackbar("Light", "Photo Editor", &st.light, 200, onTrack, &st);
+
+    updateDisplay(&st);
+
+    bool quitAll = false;
+    while (true) {
+        int k = cv::waitKey(20);
+        if (k == 'n' || k == 27) { // next or ESC
+            break;
+        } else if (k == 'q') {
+            quitAll = true;
+            break;
+        } else if (k == 'd') {
+            denoise(img);
+            st.original = img.data.clone();
+            updateDisplay(&st);
+        } else if (k == 'i') {
+            aiMetadata(img);
+        } else if (k == 'g') {
+            std::string prompt; std::cout << "prompt: "; std::getline(std::cin, prompt); generativeAI(img, prompt);
+            st.original = img.data.clone();
+            updateDisplay(&st);
+        } else if (k == 'r') {
+            aiRemove(img);
+            st.original = img.data.clone();
+            updateDisplay(&st);
+        } else if (k == 'm') {
+            int x,y,w,h,d; std::cout << "x y w h delta: "; std::cin >> x >> y >> w >> h >> d; maskAdjust(img,{x,y,w,h},d); std::cin.ignore();
+            st.original = img.data.clone();
+            updateDisplay(&st);
+        } else if (k == 's') {
+            preset.brightness = st.bright - 100;
+            preset.hue = st.hue - 180;
+            preset.saturation = st.sat - 100;
+            preset.light = st.light - 100;
+            savePreset(preset, "preset.txt");
+        } else if (k == 'l') {
+            if (loadPreset(preset, "preset.txt")) {
+                st.bright = preset.brightness + 100;
+                st.hue = preset.hue + 180;
+                st.sat = preset.saturation + 100;
+                st.light = preset.light + 100;
+                updateDisplay(&st);
+            }
+        } else if (k == 'c') {
+            img.culled = true; break;
+        }
+    }
+    cv::destroyWindow("Photo Editor");
+
+    if (!img.culled) {
+        preset.brightness = st.bright - 100;
+        preset.hue = st.hue - 180;
+        preset.saturation = st.sat - 100;
+        preset.light = st.light - 100;
+        st.display.copyTo(img.data);
+        img.edited = true;
+    }
+    return !quitAll;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::cout << "Usage: " << argv[0] << " <catalogue folders...>" << std::endl;
@@ -159,6 +307,13 @@ int main(int argc, char** argv) {
     }
 
     Preset preset;
+    loadPreset(preset, "preset.txt"); // ignore result
+
+    bool cont = true;
+    for (size_t idx = 0; idx < cat.images.size() && cont; ++idx) {
+        Image& img = cat.images[idx];
+        std::cout << "Editing " << img.path << std::endl;
+        cont = editImageGUI(img, preset);
     std::string presetFile = "preset.txt";
     loadPreset(preset, presetFile); // ignore result
 
