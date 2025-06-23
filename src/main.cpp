@@ -13,6 +13,10 @@ struct Image {
     bool edited = false;
     bool culled = false;
 
+class Image {
+public:
+    cv::Mat data;
+    std::string path;
     Image(const std::string& p) : path(p) {
         data = cv::imread(p, cv::IMREAD_UNCHANGED);
         if (data.empty()) {
@@ -33,6 +37,12 @@ public:
     std::vector<Image> images;
 
     void loadFolder(const std::string& folder) {
+
+class Catalogue {
+public:
+    std::vector<Image> images;
+    void load(const std::string& folder) {
+        images.clear();
         for (const auto& entry : fs::directory_iterator(folder)) {
             if (entry.is_regular_file()) {
                 images.emplace_back(entry.path().string());
@@ -60,6 +70,10 @@ void adjustBrightness(cv::Mat& mat, int delta) {
 
 void adjustBrightness(Image& img, int delta) {
     adjustBrightness(img.data, delta);
+void adjustBrightness(Image& img, int delta) {
+    cv::Mat tmp;
+    img.data.convertTo(tmp, -1, 1, delta);
+    img.data = tmp;
     img.edited = true;
 }
 
@@ -67,6 +81,9 @@ void adjustBrightness(Image& img, int delta) {
 void adjustHSL(cv::Mat& mat, int hue, int sat, int light) {
     cv::Mat hsv;
     cv::cvtColor(mat, hsv, cv::COLOR_BGR2HSV);
+void adjustHSL(Image& img, int hue, int sat, int light) {
+    cv::Mat hsv;
+    cv::cvtColor(img.data, hsv, cv::COLOR_BGR2HSV);
     for (int y = 0; y < hsv.rows; ++y) {
         for (int x = 0; x < hsv.cols; ++x) {
             cv::Vec3b& pixel = hsv.at<cv::Vec3b>(y, x);
@@ -80,6 +97,7 @@ void adjustHSL(cv::Mat& mat, int hue, int sat, int light) {
 
 void adjustHSL(Image& img, int hue, int sat, int light) {
     adjustHSL(img.data, hue, sat, light);
+    cv::cvtColor(hsv, img.data, cv::COLOR_HSV2BGR);
     img.edited = true;
 }
 
@@ -128,6 +146,29 @@ void denoise(Image& img) {
     cv::fastNlMeansDenoisingColored(img.data, tmp, 10, 10, 7, 21);
     img.data = tmp;
     img.edited = true;
+// Placeholder for mask adjustments
+void maskAdjust(Image& img) {
+    // TODO: Implement mask adjustments
+}
+
+// Placeholder for AI metadata insertion
+void aiMetadata(Image& img) {
+    // TODO: Use AI to generate metadata
+}
+
+// Placeholder for AI remove tools
+void aiRemove(Image& img) {
+    // TODO: AI object removal
+}
+
+// Placeholder for generative AI
+void generativeAI(Image& img, const std::string& prompt) {
+    // TODO: Generate new content based on prompt
+}
+
+// Placeholder for professional denoise
+void denoise(Image& img) {
+    // TODO: Advanced denoising
 }
 
 bool savePreset(const Preset& p, const std::string& file) {
@@ -252,6 +293,14 @@ int main(int argc, char** argv) {
 
     Catalogue cat;
     cat.load(folders);
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        std::cout << "Usage: " << argv[0] << " <catalogue folder>" << std::endl;
+        return 0;
+    }
+
+    Catalogue cat;
+    cat.load(argv[1]);
 
     if (cat.images.empty()) {
         return 0;
@@ -265,6 +314,41 @@ int main(int argc, char** argv) {
         Image& img = cat.images[idx];
         std::cout << "Editing " << img.path << std::endl;
         cont = editImageGUI(img, preset);
+    std::string presetFile = "preset.txt";
+    loadPreset(preset, presetFile); // ignore result
+
+    for (size_t idx = 0; idx < cat.images.size(); ++idx) {
+        Image& img = cat.images[idx];
+        std::cout << "Editing " << img.path << std::endl;
+
+        char cmd;
+        while (true) {
+            std::cout << "[b]rightness [h]sl [m]ask [c]ull [s]ave preset [l]oad preset [n]ext [q]uit: ";
+            std::cin >> cmd;
+            if (cmd == 'b') {
+                int d; std::cout << "delta: "; std::cin >> d; adjustBrightness(img, d);
+            } else if (cmd == 'h') {
+                int hu, sa, li; std::cout << "h s l: "; std::cin >> hu >> sa >> li; adjustHSL(img, hu, sa, li);
+            } else if (cmd == 'm') {
+                int x,y,w,h,d; std::cout << "x y w h delta: "; std::cin >> x >> y >> w >> h >> d; maskAdjust(img, {x,y,w,h}, d);
+            } else if (cmd == 'c') {
+                img.culled = true; break;
+            } else if (cmd == 's') {
+                preset.brightness = preset.hue = preset.saturation = preset.light = 0; // not tracking history
+                savePreset(preset, presetFile);
+            } else if (cmd == 'l') {
+                loadPreset(preset, presetFile);
+                adjustBrightness(img, preset.brightness);
+                adjustHSL(img, preset.hue, preset.saturation, preset.light);
+            } else if (cmd == 'n') {
+                break;
+            } else if (cmd == 'q') {
+                idx = cat.images.size();
+                break;
+            }
+        }
+
+        if (cmd == 'q') break;
     }
 
     int count = 0;
@@ -275,5 +359,13 @@ int main(int argc, char** argv) {
     }
 
     std::cout << "Processed " << count << " images" << std::endl;
+    Image& img = cat.images[0];
+    adjustBrightness(img, 50);
+    adjustHSL(img, 10, 10, 10);
+    aiMetadata(img); // placeholder
+    denoise(img);    // placeholder
+    cv::imwrite("output.jpg", img.data);
+
+    std::cout << "Saved output.jpg" << std::endl;
     return 0;
 }
